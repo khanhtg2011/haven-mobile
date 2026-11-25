@@ -32,10 +32,12 @@ jobs:
 
       - name: Setup Android SDK & NDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Install NDK & Android Targets
         run: |
-          sdkmanager "ndk;27.0.12077973"
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;27.0.12077973"
           rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
 
       - name: Install Rust toolchain
@@ -58,13 +60,15 @@ jobs:
       - name: Build Android APK
         env:
           NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.0.12077973
-        run: npx tauri android build --config src-tauri/tauri.android.conf.json --apk --target aarch64
+        run: |
+          npx tauri android build --config src-tauri/tauri.android.conf.json --apk --target aarch64
+          find src-tauri/gen/android/app/build/outputs/apk -type f -name "*.apk"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: haven-mobile-android-apk
-          path: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+          path: src-tauri/gen/android/app/build/outputs/apk/**/release/*.apk
 
       - name: Create GitHub Pre-Release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -72,6 +76,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          name: Haven Mobile ${{ github.ref_name }} (Android Pre-Release)
           prerelease: true
           draft: false
-          files: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+          files: src-tauri/gen/android/app/build/outputs/apk/**/release/*.apk
