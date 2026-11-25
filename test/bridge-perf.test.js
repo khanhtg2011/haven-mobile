@@ -112,7 +112,7 @@ test('mobile-focus.js survives document-start null DOM, deduplicates listeners, 
 
   // Check overflow fixes, settings responsiveness & status-bar-toggle hiding are compiled in CSS
   assert.match(focusJs, /#status-bar-toggle/);
-  assert.match(focusJs, /max-width:\s*380px/);
+  assert.match(focusJs, /#mentions-btn/);
   assert.match(focusJs, /#settings-modal\s+\.modal\.modal-settings/);
 
   // Double-click on standard text channel must NOT force voice join

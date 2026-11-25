@@ -341,31 +341,29 @@
       }
 
       .user-bar > .icon-btn,
-      .user-bar > #mentions-btn,
-      .user-bar > #rename-btn,
       .user-bar > #logout-btn,
       .user-bar > #voice-mute-btn,
       .user-bar > #voice-deafen-btn,
       .user-bar > #mobile-settings-btn {
-        width: 28px !important;
-        height: 28px !important;
-        min-width: 28px !important;
-        max-width: 28px !important;
-        flex: 0 0 28px !important;
+        width: 32px !important;
+        height: 32px !important;
+        min-width: 32px !important;
+        max-width: 32px !important;
+        flex: 0 0 32px !important;
         padding: 0 !important;
         margin: 0 !important;
         display: inline-flex !important;
         align-items: center !important;
         justify-content: center !important;
-        font-size: 13px !important;
+        font-size: 15px !important;
+        border-radius: 8px !important;
         box-sizing: border-box !important;
       }
 
-      @media (max-width: 380px) {
-        /* Keep core action buttons cleanly inside 288px drawers on 360px devices */
-        .user-bar > #rename-btn {
-          display: none !important;
-        }
+      /* Keep the bottom user-bar clean and readable on mobile (Mentions/Rename are in Settings/Header) */
+      .user-bar > #mentions-btn,
+      .user-bar > #rename-btn {
+        display: none !important;
       }
 
       .channel-item {
@@ -379,6 +377,28 @@
         background: rgba(255, 255, 255, 0.12) !important;
         color: #ffffff !important;
         font-weight: 600 !important;
+      }
+
+      /* Show compact Voice Join button in mobile header for 1-tap voice access */
+      .channel-header #voice-join-btn {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 5px 10px !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        border-radius: 16px !important;
+        white-space: nowrap !important;
+      }
+
+      /* Cleaner mobile chat messages & media */
+      .message, .msg-group {
+        padding: 6px 10px !important;
+      }
+      .message img, .msg-group img {
+        border-radius: 10px !important;
+        max-width: 100% !important;
+        height: auto !important;
       }
 
       /* Responsive Settings Modal on narrow mobile portrait screens */
@@ -416,12 +436,10 @@
       #settings-modal .settings-tab-bar,
       #settings-modal .settings-nav {
         display: flex !important;
-        flex-wrap: nowrap !important;
-        overflow-x: auto !important;
+        flex-wrap: wrap !important;
+        overflow-x: visible !important;
         max-width: 100% !important;
         gap: 6px !important;
-        -webkit-overflow-scrolling: touch !important;
-        scrollbar-width: none !important;
       }
 
       #settings-modal .settings-tab-bar::-webkit-scrollbar,
