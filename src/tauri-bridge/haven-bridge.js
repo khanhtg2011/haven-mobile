@@ -283,46 +283,71 @@
     seen.android_app_promo = true;
     localStorage.setItem(welcomeKey, JSON.stringify(seen));
 
-    // Force hide with high-specificity CSS
-    const style = document.createElement('style');
-    style.id = 'haven-desktop-injected-style';
-    style.textContent = `
-      #desktop-promo-modal,
-      #android-beta-modal,
-      #android-beta-banner,
-      .desktop-promo,
-      .android-beta-promo,
-      .modal-overlay.desktop-promo {
-        display: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
-        width: 0 !important;
-        height: 0 !important;
-      }
-    `;
-    if (document.head) {
-      document.head.appendChild(style);
-    } else {
-      document.addEventListener('DOMContentLoaded', () => {
-        if (!document.getElementById('haven-desktop-injected-style') && document.head) {
-          document.head.appendChild(style);
+    // Skip injecting a duplicate style sheet when mobile-focus styles already cover promo hiding
+    const ensurePromoStyle = () => {
+      if (isAndroid && document.getElementById('haven-mobile-focus-styles')) return;
+      if (document.getElementById('haven-desktop-injected-style') || !document.head) return;
+      const style = document.createElement('style');
+      style.id = 'haven-desktop-injected-style';
+      style.textContent = `
+        #desktop-promo-modal,
+        #android-beta-modal,
+        #android-beta-banner,
+        .desktop-promo,
+        .android-beta-promo,
+        .modal-overlay.desktop-promo {
+          display: none !important;
+          visibility: hidden !important;
+          opacity: 0 !important;
+          pointer-events: none !important;
+          width: 0 !important;
+          height: 0 !important;
         }
-      });
+      `;
+      document.head.appendChild(style);
+    };
+    if (document.head) {
+      ensurePromoStyle();
+    } else {
+      document.addEventListener('DOMContentLoaded', ensurePromoStyle, { once: true });
     }
 
     // Actively remove promo modals from DOM so they cannot appear even for a single frame
+    const PROMO_MODAL_SET = new Set(['desktop-promo-modal', 'android-beta-modal', 'android-beta-banner']);
     const purgeModals = () => {
-      const ids = ['desktop-promo-modal', 'android-beta-modal', 'android-beta-banner'];
-      for (const id of ids) {
+      for (const id of PROMO_MODAL_SET) {
         const el = document.getElementById(id);
         if (el) el.remove();
       }
     };
     purgeModals();
-    const schedulePurge = coalesceFrame(purgeModals);
+    const requestPurgeFrame = coalesceFrame(purgeModals);
+    const schedulePurge = (mutations) => {
+      if (!Array.isArray(mutations)) {
+        requestPurgeFrame();
+        return;
+      }
+      for (let i = 0; i < mutations.length; i++) {
+        const added = mutations[i].addedNodes;
+        if (!added || added.length === 0) continue;
+        for (let j = 0; j < added.length; j++) {
+          const node = added[j];
+          if (!node || node.nodeType !== 1) continue;
+          if (PROMO_MODAL_SET.has(node.id)) {
+            requestPurgeFrame();
+            return;
+          }
+          if (node.firstElementChild && node.id !== 'messages' && typeof node.querySelector === 'function') {
+            if (node.querySelector('#desktop-promo-modal, #android-beta-modal, #android-beta-banner')) {
+              requestPurgeFrame();
+              return;
+            }
+          }
+        }
+      }
+    };
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', schedulePurge);
+      document.addEventListener('DOMContentLoaded', requestPurgeFrame, { once: true });
     }
     const attachPurgeObserver = () => {
       try {
@@ -339,21 +364,25 @@
       document.addEventListener('DOMContentLoaded', attachPurgeObserver, { once: true });
     }
 
-    // Persist promo dismissed to user account when socket connects
+    // Persist promo dismissed to user account once (avoid 1Hz polling on repeat launches)
     const syncPromoPreferences = () => {
       if (window.app && window.app.socket && typeof window.app.socket.emit === 'function') {
         window.app.socket.emit('set-preference', { key: 'promo_seen_desktop', value: 'true' });
         window.app.socket.emit('set-preference', { key: 'promo_seen_android', value: 'true' });
         window.app.socket.emit('set-preference', { key: 'android_banner_seen', value: 'true' });
+        try { localStorage.setItem('haven_promo_prefs_synced', '1'); } catch (_) {}
         return true;
       }
       return false;
     };
-    if (!syncPromoPreferences()) {
-      const syncInterval = setInterval(() => {
-        if (syncPromoPreferences()) clearInterval(syncInterval);
-      }, 1000);
-      setTimeout(() => clearInterval(syncInterval), 30000);
+    if (localStorage.getItem('haven_promo_prefs_synced') !== '1' && !syncPromoPreferences()) {
+      const delays = [1500, 3000, 6000, 10000];
+      let step = 0;
+      const tryLater = () => {
+        if (syncPromoPreferences() || step >= delays.length) return;
+        setTimeout(tryLater, delays[step++]);
+      };
+      setTimeout(tryLater, delays[step++]);
     }
   } catch (_) {}
 
@@ -593,7 +622,9 @@
   }
 
   window.addEventListener('click', (e) => {
-    const link = e.target.closest('a');
+    const target = e.target;
+    if (!target || typeof target.closest !== 'function') return;
+    const link = target.closest('a');
     if (!link) return;
     const href = link.getAttribute('href');
     if (!href || href === '#' || href.startsWith('javascript:')) return;

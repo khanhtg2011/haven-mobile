@@ -28,6 +28,15 @@
     '#status-bar-toggle', '.status-bar-toggle-tab', '#status-bar'
   ].join(', ');
 
+  const PROMO_MODAL_IDS = ['android-beta-modal', 'desktop-promo-modal', 'android-beta-banner'];
+  const CHAT_FEED_SELECTOR = '#messages, #dm-pip-messages, #thread-messages, .typing-indicator';
+
+  const SYNC_MODALS = 1 << 0;
+  const SYNC_CLUTTER = 1 << 1;
+  const SYNC_SIDEBAR = 1 << 2;
+  const SYNC_MEDIA = 1 << 3;
+  const SYNC_ALL = SYNC_MODALS | SYNC_CLUTTER | SYNC_SIDEBAR | SYNC_MEDIA;
+
   // 1. Suppress browser push-notification prompts immediately
   window.__DISABLE_PUSH_PROMPT__ = true;
   try {
@@ -40,6 +49,7 @@
     } catch (_) {}
   }
 
+  let modalsCleanOnce = false;
   function dismissModals() {
     const pushModal = document.getElementById('push-error-modal');
     if (pushModal) {
@@ -52,23 +62,26 @@
       }
       pushModal.remove();
     }
-    for (const id of ['android-beta-modal', 'desktop-promo-modal', 'android-beta-banner']) {
-      const modal = document.getElementById(id);
+    for (let i = 0; i < PROMO_MODAL_IDS.length; i++) {
+      const modal = document.getElementById(PROMO_MODAL_IDS[i]);
       if (modal) {
         modal.style.setProperty('display', 'none', 'important');
         modal.remove();
       }
     }
 
-    if (window.app && typeof window.app._showPushError === 'function') {
+    if (window.app && typeof window.app._showPushError === 'function' && !window.app.__havenPushPatched) {
       window.app._showPushError = function () {};
+      window.app.__havenPushPatched = true;
     }
+    modalsCleanOnce = true;
   }
 
   const MOBILE_FOCUS_CSS = `
       :root {
         --safe-bottom: env(safe-area-inset-bottom, 0px);
         --safe-top: env(safe-area-inset-top, 0px);
+        --msg-glow: none !important;
       }
 
       /* Suppress annoying promo and debug widgets */
@@ -86,6 +99,57 @@
         display: none !important;
       }
 
+      /* Mobile GPU Performance: Eliminate offscreen backdrop-filter blur readbacks */
+      .modal-overlay {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        background: rgba(0, 0, 0, 0.72) !important;
+        contain: layout style !important;
+      }
+
+      .pins-pip-header, .dm-pip-header, .dm-pip-input-area,
+      .profile-popup, .toast, .stream-viewer-badge,
+      .fullscreen-call-toolbar:not([hidden]),
+      .main.banner-mode-shaded .header-actions-box,
+      .main.banner-mode-minimal .channel-info,
+      .main.banner-mode-minimal .header-actions-box,
+      .main.banner-mode-minimal .btn-voice,
+      .main.banner-mode-minimal .voice-active-indicator,
+      .main.banner-mode-minimal .channel-topic-bar {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+      }
+
+      /* Stop continuous infinite idle keyframe animations on mobile */
+      .tp-preview, .update-pulse, .disk-low-dot, .donors-heart-icon {
+        animation: none !important;
+      }
+
+      /* Instant touch response without 300ms delay or grey highlight flash */
+      button, a, input, textarea, [role="button"], .channel-item {
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      /* Avoid layout-invalidating transition:all on high-frequency interactive controls */
+      .channel-item, .message, .msg-group, .modal, .settings-nav-item, .tp-card {
+        transition-property: background-color, border-color, color, opacity, transform !important;
+        transition-duration: 0.12s !important;
+      }
+
+      /* Hardware-accelerated mobile sidebar drawer and momentum scrolling */
+      .sidebar {
+        will-change: transform;
+        backface-visibility: hidden;
+        contain: layout style;
+      }
+
+      #channel-list, #member-list {
+        contain: layout style;
+        overscroll-behavior-y: contain;
+        -webkit-overflow-scrolling: touch;
+      }
+
       /* Top Channel Header */
       .channel-header, #chat-header, .chat-header {
         height: calc(52px + var(--safe-top)) !important;
@@ -97,6 +161,7 @@
         align-items: center !important;
         justify-content: space-between !important;
         gap: 8px !important;
+        contain: layout style;
       }
 
       #mobile-menu-btn {
@@ -167,21 +232,45 @@
         border-radius: 10px !important;
       }
 
-      /* Chat Messages & Media */
-      #messages-container, .messages-container {
+      /* Chat Messages & Media: layout/style isolation for fast scrolling */
+      #messages, #messages-container, .messages-container, #dm-pip-messages, #thread-messages {
         padding: 8px 6px !important;
+        contain: layout style;
+        overflow-anchor: auto;
+        overscroll-behavior-y: contain;
+        -webkit-overflow-scrolling: touch;
       }
 
       .message, .msg-group {
         border-radius: 12px !important;
-        padding: 8px 10px !important;
+        padding: 6px 10px !important;
         margin-bottom: 4px !important;
+        contain: layout style;
+        content-visibility: auto;
+        contain-intrinsic-size: auto 64px;
       }
 
-      .message img, .message video, .msg-attachment img {
+      .message:hover, .msg-group:hover {
+        transition: none !important;
+        box-shadow: none !important;
+      }
+
+      .message img:not(.message-avatar-img):not(.custom-emoji):not(.emoji):not(.reaction-custom-emoji),
+      .message video,
+      .msg-group img:not(.message-avatar-img):not(.custom-emoji):not(.emoji):not(.reaction-custom-emoji),
+      .msg-attachment img {
         max-width: 100% !important;
         height: auto !important;
         border-radius: 10px !important;
+      }
+
+      .message-avatar-img {
+        width: var(--msg-avatar, 38px) !important;
+        height: var(--msg-avatar, 38px) !important;
+        min-width: var(--msg-avatar, 38px) !important;
+        border-radius: 50% !important;
+        object-fit: cover !important;
+        align-self: flex-start !important;
       }
 
       /* Clean Mobile Pill Composer */
@@ -200,6 +289,7 @@
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28) !important;
         box-sizing: border-box !important;
         flex-shrink: 0 !important;
+        contain: layout style;
       }
 
       .input-actions-box {
@@ -392,6 +482,7 @@
         padding: 9px 12px !important;
         font-size: 15px !important;
         cursor: pointer !important;
+        contain: layout style;
       }
 
       .channel-item.active {
@@ -410,16 +501,6 @@
         font-weight: 600 !important;
         border-radius: 16px !important;
         white-space: nowrap !important;
-      }
-
-      /* Cleaner mobile chat messages & media */
-      .message, .msg-group {
-        padding: 6px 10px !important;
-      }
-      .message img, .msg-group img {
-        border-radius: 10px !important;
-        max-width: 100% !important;
-        height: auto !important;
       }
 
       /* Full-screen Native-style Settings Sheet on Mobile */
@@ -441,6 +522,7 @@
         border: none !important;
         overflow-x: hidden !important;
         box-sizing: border-box !important;
+        contain: layout style !important;
       }
 
       #settings-modal .settings-body,
@@ -449,6 +531,19 @@
         min-width: 0 !important;
         max-width: 100% !important;
         box-sizing: border-box !important;
+      }
+
+      #settings-modal .settings-body {
+        contain: layout style;
+        overscroll-behavior-y: contain;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      #settings-modal .settings-section,
+      #settings-modal .tp-card {
+        contain: layout style;
+        content-visibility: auto;
+        contain-intrinsic-size: auto 120px;
       }
 
       #settings-modal .settings-header {
@@ -478,19 +573,73 @@
       }
     `;
 
-  // 2. Inject CSS safely even when executed at document-start before <html> or <head> exists
-  function injectStyles() {
-    dismissModals();
+  let styleEl = null;
+  function ensureStyleElement() {
+    if (styleEl && styleEl.isConnected) return true;
+    const existing = document.getElementById('haven-mobile-focus-styles');
+    if (existing) {
+      styleEl = existing;
+      return true;
+    }
     const mountTarget = document.head || document.documentElement;
     if (!mountTarget) return false;
-    if (!document.getElementById('haven-mobile-focus-styles')) {
-      const style = document.createElement('style');
-      style.id = 'haven-mobile-focus-styles';
-      style.textContent = MOBILE_FOCUS_CSS;
-      mountTarget.appendChild(style);
-    }
-    dismissModals();
+    const style = document.createElement('style');
+    style.id = 'haven-mobile-focus-styles';
+    style.textContent = MOBILE_FOCUS_CSS;
+    mountTarget.appendChild(style);
+    styleEl = style;
     return true;
+  }
+
+  // 2. Inject CSS safely even when executed at document-start before <html> or <head> exists
+  function injectStyles() {
+    const ok = ensureStyleElement();
+    if (!ok) return false;
+    if (!modalsCleanOnce) dismissModals();
+    return true;
+  }
+
+  function optimizeMediaInSubtree(root) {
+    if (!root || root.nodeType !== 1) return;
+    if (root.tagName === 'IMG') {
+      if (root.decoding !== 'async') root.decoding = 'async';
+      return;
+    }
+    if (root.tagName === 'VIDEO') {
+      if (root.preload === 'auto' || !root.preload) root.preload = 'metadata';
+      return;
+    }
+    if (typeof root.querySelectorAll !== 'function') return;
+    const imgs = root.querySelectorAll('img');
+    for (let i = 0; i < imgs.length; i++) {
+      if (imgs[i].decoding !== 'async') imgs[i].decoding = 'async';
+    }
+    const videos = root.querySelectorAll('video');
+    for (let i = 0; i < videos.length; i++) {
+      if (videos[i].preload === 'auto' || !videos[i].preload) videos[i].preload = 'metadata';
+    }
+  }
+
+  function purgeClutterNode(el) {
+    if (!el) return;
+    if (el.id !== 'status-bar' && el.id !== 'status-bar-toggle') {
+      el.remove();
+    } else {
+      el.style.setProperty('display', 'none', 'important');
+    }
+  }
+
+  function purgeClutterInSubtree(root) {
+    if (!root || root.nodeType !== 1) return;
+    if (typeof root.matches === 'function' && root.matches(CLUTTER_SELECTOR)) {
+      purgeClutterNode(root);
+      return;
+    }
+    if (typeof root.querySelectorAll !== 'function') return;
+    const list = root.querySelectorAll(CLUTTER_SELECTOR);
+    for (let i = 0; i < list.length; i++) {
+      purgeClutterNode(list[i]);
+    }
   }
 
   // 3. Double click/tap strictly on VOICE channels to directly join voice
@@ -532,9 +681,11 @@
   }
 
   document.addEventListener('dblclick', (e) => {
-    const item = e.target.closest('.channel-item');
+    const target = e.target;
+    if (!target || typeof target.closest !== 'function') return;
+    const item = target.closest('.channel-item');
     if (!item) return;
-    if (e.target.closest('.channel-more-btn') || e.target.closest('.channel-collapse-arrow')) return;
+    if (target.closest('.channel-more-btn') || target.closest('.channel-collapse-arrow')) return;
     if (!isVoiceTargetChannel(item)) return;
 
     const code = item.dataset.code;
@@ -545,23 +696,27 @@
 
   let lastTouchTime = 0;
   let lastTouchCode = null;
-  let touchStartPos = { x: 0, y: 0 };
+  let touchStartX = 0;
+  let touchStartY = 0;
 
   document.addEventListener('touchstart', (e) => {
     if (e.touches && e.touches.length === 1) {
-      touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
     }
   }, { passive: true });
 
   document.addEventListener('touchend', (e) => {
-    const item = e.target.closest('.channel-item');
+    const target = e.target;
+    if (!target || typeof target.closest !== 'function') return;
+    const item = target.closest('.channel-item');
     if (!item) return;
-    if (e.target.closest('.channel-more-btn') || e.target.closest('.channel-collapse-arrow')) return;
+    if (target.closest('.channel-more-btn') || target.closest('.channel-collapse-arrow')) return;
 
     const touch = e.changedTouches && e.changedTouches[0];
     if (touch) {
-      const dx = Math.abs(touch.clientX - touchStartPos.x);
-      const dy = Math.abs(touch.clientY - touchStartPos.y);
+      const dx = Math.abs(touch.clientX - touchStartX);
+      const dy = Math.abs(touch.clientY - touchStartY);
       if (dx > 12 || dy > 12) return;
     }
 
@@ -584,39 +739,110 @@
 
   let isSyncing = false;
   let syncScheduled = false;
+  let pendingReasons = 0;
+  let fullClutterSweepDone = false;
+  const pendingClutterRoots = new Set();
+  const pendingMediaRoots = new Set();
 
-  function relocateUserBar() {
+  let cachedUserBar = null;
+  let cachedSidebarBottom = null;
+  let cachedMuteBtn = null;
+  let cachedDeafenBtn = null;
+  let cachedSettingsBtn = null;
+
+  function resolveUserBarButtons() {
+    if (!cachedMuteBtn || !cachedMuteBtn.isConnected) {
+      cachedMuteBtn = document.getElementById('voice-mute-btn');
+    }
+    if (!cachedDeafenBtn || !cachedDeafenBtn.isConnected) {
+      cachedDeafenBtn = document.getElementById('voice-deafen-btn');
+    }
+    if (!cachedSettingsBtn || !cachedSettingsBtn.isConnected) {
+      cachedSettingsBtn = document.getElementById('mobile-settings-btn') || document.getElementById('open-settings-btn');
+    }
+    return [cachedMuteBtn, cachedDeafenBtn, cachedSettingsBtn];
+  }
+
+  function isUserBarWiringComplete() {
+    if (!cachedUserBar || !cachedUserBar.isConnected) return false;
+    if (!cachedSidebarBottom || !cachedSidebarBottom.isConnected) return false;
+    if (cachedUserBar.parentElement !== cachedSidebarBottom) return false;
+
+    const buttons = resolveUserBarButtons();
+    for (let i = 0; i < buttons.length; i++) {
+      if (buttons[i] && buttons[i].parentElement !== cachedUserBar) return false;
+    }
+    return true;
+  }
+
+  function syncSidebarUserBar() {
+    if (isUserBarWiringComplete()) return;
+
+    const sidebar = document.querySelector('.sidebar');
+    const userBar = document.querySelector('.user-bar');
+    const sidebarBottom = document.querySelector('.sidebar-bottom');
+
+    cachedUserBar = userBar;
+    cachedSidebarBottom = sidebarBottom;
+
+    if (sidebar && userBar && sidebarBottom) {
+      if (userBar.parentElement !== sidebarBottom) {
+        sidebarBottom.prepend(userBar);
+      }
+
+      const buttons = resolveUserBarButtons();
+      for (let i = 0; i < buttons.length; i++) {
+        const btn = buttons[i];
+        if (btn && btn.parentElement !== userBar) {
+          btn.style.display = 'inline-flex';
+          userBar.appendChild(btn);
+        }
+      }
+    }
+  }
+
+  function relocateUserBar(reasons = SYNC_ALL) {
     if (isSyncing) return;
     isSyncing = true;
     try {
-      injectStyles();
+      ensureStyleElement();
 
-      document.querySelectorAll(CLUTTER_SELECTOR).forEach(el => {
-        if (el.id !== 'status-bar' && el.id !== 'status-bar-toggle') {
-          el.remove();
-        } else {
-          el.style.setProperty('display', 'none', 'important');
-        }
-      });
+      if (reasons & SYNC_MODALS) {
+        dismissModals();
+      }
 
-      const sidebar = document.querySelector('.sidebar');
-      const userBar = document.querySelector('.user-bar');
-      const sidebarBottom = document.querySelector('.sidebar-bottom');
-
-      if (sidebar && userBar && sidebarBottom) {
-        if (userBar.parentElement !== sidebarBottom) {
-          sidebarBottom.prepend(userBar);
-        }
-
-        const muteBtn = document.getElementById('voice-mute-btn');
-        const deafenBtn = document.getElementById('voice-deafen-btn');
-        const settingsBtn = document.getElementById('mobile-settings-btn') || document.getElementById('open-settings-btn');
-
-        for (const btn of [muteBtn, deafenBtn, settingsBtn]) {
-          if (btn && btn.parentElement !== userBar) {
-            btn.style.display = 'inline-flex';
-            userBar.appendChild(btn);
+      if (reasons & SYNC_CLUTTER) {
+        if (!fullClutterSweepDone) {
+          const list = document.querySelectorAll(CLUTTER_SELECTOR);
+          for (let i = 0; i < list.length; i++) {
+            purgeClutterNode(list[i]);
           }
+          fullClutterSweepDone = Boolean(document.body);
+          pendingClutterRoots.clear();
+        } else if (pendingClutterRoots.size > 0) {
+          for (const root of pendingClutterRoots) {
+            if (root && root.isConnected) {
+              purgeClutterInSubtree(root);
+            }
+          }
+          pendingClutterRoots.clear();
+        }
+      }
+
+      if (reasons & SYNC_SIDEBAR) {
+        syncSidebarUserBar();
+      }
+
+      if (reasons & SYNC_MEDIA) {
+        if (pendingMediaRoots.size > 0) {
+          for (const root of pendingMediaRoots) {
+            if (root && root.isConnected) {
+              optimizeMediaInSubtree(root);
+            }
+          }
+          pendingMediaRoots.clear();
+        } else if (document.body) {
+          optimizeMediaInSubtree(document.body);
         }
       }
     } finally {
@@ -624,27 +850,86 @@
     }
   }
 
-  function scheduleSync() {
+  function scheduleSync(reasons = SYNC_ALL) {
+    pendingReasons |= reasons;
     if (syncScheduled) return;
     syncScheduled = true;
     const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb) => setTimeout(cb, 16);
     raf(() => {
       syncScheduled = false;
-      relocateUserBar();
+      const runReasons = pendingReasons || SYNC_ALL;
+      pendingReasons = 0;
+      relocateUserBar(runReasons);
     });
   }
 
-  window.__HAVEN_MOBILE_FOCUS_SYNC__ = scheduleSync;
+  window.__HAVEN_MOBILE_FOCUS_SYNC__ = () => {
+    fullClutterSweepDone = false;
+    modalsCleanOnce = false;
+    scheduleSync(SYNC_ALL);
+  };
+
+  window.__HAVEN_TRIM_MEMORY__ = () => {
+    pendingClutterRoots.clear();
+    pendingMediaRoots.clear();
+    dismissModals();
+  };
+
+  function handleMutations(mutations) {
+    if (isSyncing || !Array.isArray(mutations)) return;
+
+    let reasons = 0;
+    for (let i = 0; i < mutations.length; i++) {
+      const m = mutations[i];
+      const added = m.addedNodes;
+      if (!added || added.length === 0) continue;
+
+      const target = m.target;
+      const insideChatFeed = Boolean(
+        target && typeof target.closest === 'function' && target.closest(CHAT_FEED_SELECTOR)
+      );
+
+      for (let j = 0; j < added.length; j++) {
+        const node = added[j];
+        if (!node || node.nodeType !== 1) continue;
+
+        const id = node.id;
+        if (
+          id === 'push-error-modal' ||
+          id === 'android-beta-modal' ||
+          id === 'desktop-promo-modal' ||
+          id === 'android-beta-banner'
+        ) {
+          reasons |= SYNC_MODALS;
+        }
+
+        if (node.tagName === 'IMG' || node.tagName === 'VIDEO' || (node.firstElementChild && pendingMediaRoots.size < 64)) {
+          pendingMediaRoots.add(node);
+          reasons |= SYNC_MEDIA;
+        }
+
+        // Skip full clutter/sidebar checks during high-frequency chat message appends
+        if (!insideChatFeed) {
+          reasons |= SYNC_CLUTTER | SYNC_SIDEBAR;
+          if (pendingClutterRoots.size < 48) {
+            pendingClutterRoots.add(node);
+          }
+        }
+      }
+    }
+
+    if (reasons !== 0) {
+      scheduleSync(reasons);
+    }
+  }
 
   function attachObserverAndSync() {
     injectStyles();
-    relocateUserBar();
+    relocateUserBar(SYNC_ALL);
     const observeTarget = document.body || document.documentElement;
     if (!observeTarget) return false;
     if (!window.__HAVEN_MOBILE_FOCUS_OBSERVER__) {
-      const observer = new MutationObserver(() => {
-        if (!isSyncing) scheduleSync();
-      });
+      const observer = new MutationObserver(handleMutations);
       observer.observe(observeTarget, { childList: true, subtree: true });
       window.__HAVEN_MOBILE_FOCUS_OBSERVER__ = observer;
     }

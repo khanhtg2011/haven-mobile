@@ -48,13 +48,19 @@ pub fn run() {
         .manage(AppState::default())
         .plugin(
             tauri_plugin_log::Builder::default()
-                .level(log::LevelFilter::Info)
+                .level(if cfg!(debug_assertions) {
+                    log::LevelFilter::Info
+                } else {
+                    log::LevelFilter::Warn
+                })
                 .build(),
         )
         .on_permission_request(|_webview, _kind| PermissionResponse::Allow)
         .on_page_load(|webview, payload| {
             #[cfg(mobile)]
-            if matches!(payload.event(), PageLoadEvent::Finished) {
+            if matches!(payload.event(), PageLoadEvent::Finished)
+                && payload.url().scheme().starts_with("http")
+            {
                 let _ = webview.eval(BRIDGE_SCRIPT);
             }
             #[cfg(not(mobile))]

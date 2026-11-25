@@ -149,6 +149,27 @@ test('MainActivity.kt avoids infinite periodic injection loop and handles window
   assert.match(kt, /override fun onDestroy\(\)/);
   assert.match(kt, /removeCallbacksAndMessages\(null\)/);
   assert.match(kt, /WindowInsetsCompat\.Type\.systemBars\(\)\s+or\s+WindowInsetsCompat\.Type\.ime\(\)/);
+  assert.match(kt, /override fun onTrimMemory\(/);
+  assert.match(kt, /WebSettings\.LOAD_DEFAULT/);
+  assert.match(kt, /offscreenPreRaster\s*=\s*true/);
+  assert.match(kt, /setWebContentsDebuggingEnabled\(BuildConfig\.DEBUG\)/);
+});
+
+test('mobile-focus.js scopes mutations away from high-frequency chat feeds and optimizes mobile GPU compositing', () => {
+  const focusJs = fs.readFileSync(MOBILE_FOCUS_PATH, 'utf8');
+  assert.match(focusJs, /backdrop-filter:\s*none\s*!important/);
+  assert.match(focusJs, /contain:\s*layout\s+style/);
+  assert.match(focusJs, /insideChatFeed/);
+  assert.match(focusJs, /touch-action:\s*manipulation/);
+  assert.match(focusJs, /__HAVEN_TRIM_MEMORY__/);
+  assert.match(focusJs, /:not\(\.message-avatar-img\)/);
+});
+
+test('haven-bridge.js skips promo polling once synced and filters non-promo mutations before rAF', () => {
+  const bridgeJs = fs.readFileSync(BRIDGE_PATH, 'utf8');
+  assert.match(bridgeJs, /haven_promo_prefs_synced/);
+  assert.match(bridgeJs, /PROMO_MODAL_SET\.has\(node\.id\)/);
+  assert.ok(!bridgeJs.includes('setInterval(() => {\n        if (syncPromoPreferences())'), 'Must not poll every second with setInterval');
 });
 
 function createBrowserSandbox({ userAgent, nullDomAtStart }) {

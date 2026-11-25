@@ -74,7 +74,7 @@ impl Default for AppState {
 
 #[tauri::command]
 pub fn get_app_version() -> String {
-    "2.0.0-alpha.3".into()
+    "2.0.0-alpha.4".into()
 }
 
 #[tauri::command]
