@@ -1,0 +1,42 @@
+# Node & Electron build
+node_modules/
+dist/
+build/
+*.exe
+*.AppImage
+*.deb
+*.dmg
+*.zip
+*.tar.gz
+*.apk
+*.aab
+
+# Environment & Secrets
+.env
+.env.*
+*.env
+!.env.example
+*.pem
+*.key
+*.cert
+*.crt
+
+# Native build
+build/Release/
+*.node
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+
+# Arena & Rust build artifacts
+.arena/
+src-tauri/target/
+src-tauri/gen/android/.gradle/
+src-tauri/gen/android/app/build/
+src-tauri/gen/android/build/
+src-tauri/gen/android/buildSrc/build/
+src-tauri/gen/android/buildSrc/.gradle/
