@@ -51,25 +51,36 @@
   <button class="err-btn" id="retry-btn" onclick="connect()">Thử lại</button>
 
   <script>
-    const TARGET = "https://haven.khanhs.io.vn/app.html";
+    const TARGET = "https://haven.khanhs.io.vn";
+    let timeoutId = null;
     function connect() {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
       document.getElementById('spinner').style.display = 'block';
       document.getElementById('status-title').textContent = 'Đang kết nối Haven...';
-      document.getElementById('status-desc').textContent = 'Đang tải máy chủ https://haven.khanhs.io.vn';
+      document.getElementById('status-desc').textContent = 'Đang tải máy chủ ' + TARGET;
       document.getElementById('retry-btn').style.display = 'none';
+
+      timeoutId = setTimeout(() => {
+        document.getElementById('spinner').style.display = 'none';
+        document.getElementById('status-title').textContent = 'Chưa tải được máy chủ';
+        document.getElementById('status-desc').textContent = 'Kiểm tra kết nối mạng hoặc thử lại.';
+        document.getElementById('retry-btn').style.display = 'inline-block';
+      }, 10000);
 
       window.location.replace(TARGET);
     }
 
+    window.addEventListener('pagehide', () => {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+    });
+
     // Connect immediately
     connect();
-
-    // Timeout fallback if network is stuck
-    setTimeout(() => {
-      document.getElementById('status-title').textContent = 'Chưa tải được máy chủ';
-      document.getElementById('status-desc').textContent = 'Kiểm tra kết nối mạng hoặc thử lại.';
-      document.getElementById('retry-btn').style.display = 'inline-block';
-    }, 10000);
   </script>
 </body>
 </html>

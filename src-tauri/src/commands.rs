@@ -74,7 +74,7 @@ impl Default for AppState {
 
 #[tauri::command]
 pub fn get_app_version() -> String {
-    "2.0.0-alpha.1".into()
+    "2.0.0-alpha.2".into()
 }
 
 #[tauri::command]
@@ -101,14 +101,17 @@ pub fn window_maximize(_app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn window_close(app: AppHandle) -> Result<(), String> {
-    if let Some(w) = app.get_webview_window("main") {
-        let _ = w.hide();
+pub fn window_close(_app: AppHandle) -> Result<(), String> {
+    #[cfg(desktop)]
+    {
+        if let Some(w) = _app.get_webview_window("main") {
+            let _ = w.hide();
+        }
+        if let Some(overlay_win) = _app.get_webview_window("overlay") {
+            let _ = overlay_win.hide();
+        }
+        crate::tray::set_gaming_priority(true);
     }
-    if let Some(overlay_win) = app.get_webview_window("overlay") {
-        let _ = overlay_win.hide();
-    }
-    crate::tray::set_gaming_priority(true);
     Ok(())
 }
 

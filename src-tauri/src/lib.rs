@@ -10,8 +10,12 @@ pub mod tray {
 }
 
 use commands::*;
+#[cfg(mobile)]
+use tauri::webview::PageLoadEvent;
+use tauri::webview::PermissionResponse;
 #[cfg(desktop)]
-use tauri::webview::{PermissionResponse, WebviewWindowBuilder};
+use tauri::webview::WebviewWindowBuilder;
+#[cfg(desktop)]
 use tauri::Manager;
 
 pub const BRIDGE_SCRIPT: &str = include_str!("../../src/tauri-bridge/haven-bridge.js");
@@ -47,11 +51,20 @@ pub fn run() {
                 .level(log::LevelFilter::Info)
                 .build(),
         )
+        .on_permission_request(|_webview, _kind| PermissionResponse::Allow)
+        .on_page_load(|webview, payload| {
+            #[cfg(mobile)]
+            if matches!(payload.event(), PageLoadEvent::Finished) {
+                let _ = webview.eval(BRIDGE_SCRIPT);
+            }
+            #[cfg(not(mobile))]
+            let _ = (webview, payload);
+        })
         .setup(|app| {
             let app_handle = app.handle();
             let _ = tray::setup_tray(app_handle);
 
-            // 1. Construct Main Window from config, bind bridge script & auto-permissions
+            // 1. Construct Main Window on desktop from config, bind bridge script & auto-permissions
             #[cfg(desktop)]
             if let Some(win_cfg) = app.config().app.windows.first() {
                 let mut builder = WebviewWindowBuilder::from_config(app_handle, win_cfg)?;
@@ -72,7 +85,7 @@ pub fn run() {
                     });
                 let _window = builder.build()?;
 
-                // Close-to-Tray: Hide to tray instead of terminating when user clicks Close (✕)
+                // Close-to-Tray: Hide to tray instead of terminating when user clicks Close
                 let win_clone = _window.clone();
                 let app_h = app_handle.clone();
                 _window.on_window_event(move |event| {
@@ -86,11 +99,9 @@ pub fn run() {
                             tray::set_gaming_priority(true);
                         }
                         tauri::WindowEvent::Focused(false) => {
-                            // User is gaming: Yield 100% CPU priority to the game (240 FPS)
                             tray::set_gaming_priority(true);
                         }
                         tauri::WindowEvent::Focused(true) => {
-                            // User returned to Haven: Restore normal priority
                             tray::set_gaming_priority(false);
                         }
                         _ => {}
@@ -99,9 +110,7 @@ pub fn run() {
             }
 
             #[cfg(mobile)]
-            {
-                // Managed by Android MainActivity & WebChromeClient
-            }
+            let _ = app_handle;
 
             // 2. In-Game Voice & Chat Overlay Window is created on-demand by get_or_create_overlay
 

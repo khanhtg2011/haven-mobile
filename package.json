@@ -1,6 +1,6 @@
 {
   "name": "haven-mobile",
-  "version": "2.0.0-alpha.1",
+  "version": "2.0.0-alpha.2",
   "description": "Haven Mobile: Android Tauri v2 Client with Discord Mobile Focus View UI",
   "author": {
     "name": "Haven Contributors",

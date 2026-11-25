@@ -6,6 +6,9 @@
 (function () {
   'use strict';
 
+  if (window.__HAVEN_TAURI_BRIDGE_INITIALIZED__) return;
+  window.__HAVEN_TAURI_BRIDGE_INITIALIZED__ = true;
+
   // 1. Tauri IPC invoke helper
   const invoke = (cmd, args = {}) => {
     if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
@@ -56,6 +59,7 @@
     },
 
     voiceOverlayEnabled: async () => {
+      if (isAndroid) return false;
       try {
         const res = await invoke('is_voice_overlay_enabled');
         return res !== false;
@@ -65,10 +69,12 @@
     },
 
     voiceOverlayReport: (report) => {
-      invoke('report_voice_overlay', { report });
+      if (!isAndroid) {
+        invoke('report_voice_overlay', { report });
+      }
     },
 
-    notify: ({ title, body, icon, channelCode, unreadCount } = {}) => {
+    notify: ({ title, body, icon, channelCode, unreadCount: _unreadCount } = {}) => {
       try {
         if ('Notification' in window && Notification.permission === 'granted') {
           const n = new Notification(title || 'Haven', {
@@ -77,247 +83,17 @@
             tag: channelCode || undefined,
             badge: icon || undefined,
           });
-          if (channelCode) {
-            n.onclick = () => {
-              window.focus();
-              window.location.hash = channelCode;
-            };
-          }
-        }
-      } catch (_) {}
-    },
-  };
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // 2.1 Android Focus View & Discord Mobile Parity Controller
-  // ══════════════════════════════════════════════════════════════════════════
-  if (isAndroid) {
-    try {
-      window.__DISABLE_PUSH_PROMPT__ = true;
-      if (typeof Notification !== 'undefined') {
-        Notification.requestPermission = () => Promise.resolve('granted');
-      }
-    } catch (_) {}
-
-    // Immediate style injection to suppress push error modals & desktop chrome
-    const suppressStyle = document.createElement('style');
-    suppressStyle.id = 'haven-mobile-suppress-styles';
-    suppressStyle.textContent = `
-      #push-error-modal, #android-beta-modal, #desktop-promo-modal {
-        display: none !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
-      }
-      #titlebar, .window-controls, .desktop-decorations {
-        display: none !important;
-      }
-    `;
-    (document.head || document.documentElement).appendChild(suppressStyle);
-
-    // Tell Haven it's running inside the mobile app
-    window.addEventListener('message', (e) => {
-      if (e.data && e.data.type === 'haven:ready') {
-        window.postMessage({ type: 'haven:mobile-init', platform: 'android' }, '*');
-      }
-    });
-
-    function initMobileFocusView() {
-      if (document.getElementById('haven-mobile-focus-dock')) return;
-
-      const style = document.createElement('style');
-      style.id = 'haven-mobile-focus-styles';
-      style.textContent = `
-        /* ─── Discord Mobile / Focus View Styles ─── */
-        :root {
-          --mobile-dock-height: 58px;
-          --safe-bottom: env(safe-area-inset-bottom, 0px);
-          --safe-top: env(safe-area-inset-top, 0px);
-        }
-
-        /* Adjust chat layout for bottom dock */
-        #chat, #messages-wrap, #messages {
-          padding-bottom: calc(var(--mobile-dock-height) + var(--safe-bottom) + 8px) !important;
-        }
-
-        #chat-input-area, .chat-input-wrapper {
-          bottom: calc(var(--mobile-dock-height) + var(--safe-bottom)) !important;
-          border-radius: 20px !important;
-          margin: 0 8px 6px 8px !important;
-          background: #23243c !important;
-        }
-
-        /* Focus View Bottom Navigation Dock */
-        #haven-mobile-focus-dock {
-          position: fixed;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          height: calc(var(--mobile-dock-height) + var(--safe-bottom));
-          padding-bottom: var(--safe-bottom);
-          background: #1e1e38;
-          border-top: 1px solid rgba(255, 255, 255, 0.08);
-          display: flex;
-          align-items: center;
-          justify-content: space-around;
-          z-index: 9999;
-          user-select: none;
-          box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.45);
-        }
-
-        .focus-dock-tab {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          flex: 1;
-          height: 100%;
-          color: #949ba4;
-          font-size: 11px;
-          font-weight: 500;
-          text-decoration: none;
-          cursor: pointer;
-          transition: color 0.15s ease, transform 0.15s ease;
-          gap: 3px;
-        }
-
-        .focus-dock-tab svg {
-          width: 22px;
-          height: 22px;
-          fill: currentColor;
-          transition: transform 0.15s ease;
-        }
-
-        .focus-dock-tab.active {
-          color: #7c5cfc;
-          font-weight: 700;
-        }
-
-        .focus-dock-tab.active svg {
-          transform: scale(1.1);
-        }
-
-        .focus-dock-avatar {
-          width: 24px;
-          height: 24px;
-          border-radius: 50%;
-          object-fit: cover;
-          border: 1.5px solid currentColor;
-        }
-
-        /* Rounded Discord Braid Style for Channels */
-        .sidebar {
-          background: #171728 !important;
-          border-top-right-radius: 16px;
-          border-bottom-right-radius: 16px;
-        }
-
-        .channel-item {
-          border-radius: 8px !important;
-          margin: 2px 8px !important;
-        }
-
-        .channel-item.active {
-          background: #313352 !important;
-          color: #fff !important;
-        }
-
-        /* Floating voice pill */
-        #voice-bar {
-          border-radius: 12px !important;
-          margin: 6px 10px !important;
-          background: #2b2d4a !important;
-          border: 1px solid #7c5cfc44 !important;
-        }
-      `;
-      (document.head || document.documentElement).appendChild(style);
-
-      const dock = document.createElement('nav');
-      dock.id = 'haven-mobile-focus-dock';
-      dock.innerHTML = `
-        <div class="focus-dock-tab active" data-tab="server">
-          <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-          <span>Server</span>
-        </div>
-        <div class="focus-dock-tab" data-tab="dms">
-          <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
-          <span>DMs</span>
-        </div>
-        <div class="focus-dock-tab" data-tab="activity">
-          <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>
-          <span>Activity</span>
-        </div>
-        <div class="focus-dock-tab" data-tab="you">
-          <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-          <span>You</span>
-        </div>
-      `;
-      document.body.appendChild(dock);
-
-      // Handle Tab Switching
-      const tabs = dock.querySelectorAll('.focus-dock-tab');
-      tabs.forEach(tab => {
-        tab.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          tabs.forEach(t => t.classList.remove('active'));
-          tab.classList.add('active');
-
-          const tabName = tab.dataset.tab;
-          if (tabName === 'server') {
-            const menuBtn = document.getElementById('mobile-menu-btn');
-            if (menuBtn) menuBtn.click();
-          } else if (tabName === 'dms') {
-            const homeServer = document.getElementById('home-server');
-            if (homeServer) homeServer.click();
-            const dmToggle = document.getElementById('dm-toggle-header');
-            if (dmToggle) dmToggle.click();
-          } else if (tabName === 'activity') {
-            const mentionsBtn = document.getElementById('mentions-btn');
-            if (mentionsBtn) mentionsBtn.click();
-          } else if (tabName === 'you') {
-            const settingsBtn = document.getElementById('mobile-settings-btn') || document.getElementById('open-settings-btn');
-            if (settingsBtn) settingsBtn.click();
-            else {
-              const userAvatar = document.getElementById('user-bar-avatar');
-              if (userAvatar) userAvatar.click();
-            }
-          }
-        });
-      });
-
-      // Update "You" avatar from user bar if available
-      const checkAvatar = setInterval(() => {
-        const userImg = document.querySelector('#user-bar-avatar img, #user-bar-face');
-        if (userImg && userImg.src) {
-          const youTab = dock.querySelector('[data-tab="you"]');
-          if (youTab) {
-            youTab.innerHTML = `
-              <img src="${userImg.src}" class="focus-dock-avatar" />
-              <span>You</span>
-            `;
-          }
-          clearInterval(checkAvatar);
-        }
-      }, 1000);
-      setTimeout(() => clearInterval(checkAvatar), 15000);
-    }
-
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initMobileFocusView);
-    } else {
-      initMobileFocusView();
-    }
-  }
-          });
           n.onclick = () => {
             window.focus();
             if (channelCode && window.app && window.app.selectChannel) {
               window.app.selectChannel(channelCode);
+            } else if (channelCode) {
+              window.location.hash = channelCode;
             }
           };
         }
       } catch (err) {
-        console.warn('[Haven Desktop] Notification error:', err);
+        console.warn('[Haven Bridge] Notification error:', err);
       }
     },
 
@@ -423,34 +199,41 @@
     },
   };
 
-  // 3. Expose Haven Desktop & Electron APIs globally so client code recognizes desktop environment
+  // 3. Expose platform-accurate Haven Tauri Bridge APIs
   window.havenDesktop = havenDesktop;
-  window.electronAPI = havenDesktop;
+  window.electronAPI = isAndroid ? undefined : havenDesktop;
   window.havenAPI = {
-    platform: 'win32',
-    isDesktop: true,
-    isDesktopApp: true,
+    platform: isAndroid ? 'android' : 'win32',
+    isDesktop: !isAndroid,
+    isDesktopApp: !isAndroid,
+    isMobileApp: isAndroid,
     notify: havenDesktop.notify,
   };
 
-  // Mock navigator.userAgent to always signal desktop app
-  try {
-    const rawUA = navigator.userAgent;
-    if (!rawUA.includes('Electron')) {
-      Object.defineProperty(navigator, 'userAgent', {
-        get: () => `${rawUA} Electron/32.0.0 HavenDesktop/2.0.0`,
-        configurable: true,
-      });
-    }
-  } catch (_) {}
+  if (!isAndroid) {
+    try {
+      const rawUA = navigator.userAgent;
+      if (!rawUA.includes('Electron')) {
+        Object.defineProperty(navigator, 'userAgent', {
+          get: () => `${rawUA} Electron/32.0.0 HavenDesktop/2.0.0`,
+          configurable: true,
+        });
+      }
+    } catch (_) {}
+  }
 
-  // 4. Stamp desktop identification attributes on <html> and <body>
-  try {
-    if (document.documentElement) {
-      document.documentElement.setAttribute('data-desktop-app', 'true');
-      document.documentElement.setAttribute('data-platform', 'win32');
-    }
-  } catch (_) {}
+  // 4. Stamp identification attributes on <html> once available
+  const stampPlatformAttrs = () => {
+    try {
+      if (!document.documentElement) return;
+      document.documentElement.setAttribute(isAndroid ? 'data-mobile-app' : 'data-desktop-app', 'true');
+      document.documentElement.setAttribute('data-platform', isAndroid ? 'android' : 'win32');
+    } catch (_) {}
+  };
+  stampPlatformAttrs();
+  if (!document.documentElement) {
+    document.addEventListener('DOMContentLoaded', stampPlatformAttrs, { once: true });
+  }
 
   // 5. Triple-Layer Auto-Grant Device Permissions (Microphone, Camera, Notifications)
   // Completely eliminates any browser permission prompts
@@ -541,10 +324,20 @@
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', schedulePurge);
     }
-    try {
-      const observer = new MutationObserver(schedulePurge);
-      observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
-    } catch (_) {}
+    const attachPurgeObserver = () => {
+      try {
+        const target = document.body || document.documentElement;
+        if (!target) return false;
+        const observer = new MutationObserver(schedulePurge);
+        observer.observe(target, { childList: true, subtree: true });
+        return true;
+      } catch (_) {
+        return false;
+      }
+    };
+    if (!attachPurgeObserver()) {
+      document.addEventListener('DOMContentLoaded', attachPurgeObserver, { once: true });
+    }
 
     // Persist promo dismissed to user account when socket connects
     const syncPromoPreferences = () => {
@@ -564,48 +357,50 @@
     }
   } catch (_) {}
 
-  // 7. Desktop Keyboard Navigation & Shortcuts
-  window.addEventListener('keydown', (e) => {
-    // F5 or Ctrl+R: Refresh page
-    if (e.key === 'F5' || (e.ctrlKey && (e.key === 'r' || e.key === 'R'))) {
-      e.preventDefault();
-      window.location.reload();
-      return;
-    }
-    // Alt+Left: History back
-    if (e.altKey && e.key === 'ArrowLeft') {
-      e.preventDefault();
-      window.history.back();
-      return;
-    }
-    // Alt+Right: History forward
-    if (e.altKey && e.key === 'ArrowRight') {
-      e.preventDefault();
-      window.history.forward();
-      return;
-    }
-    // F11: Fullscreen toggle
-    if (e.key === 'F11') {
-      e.preventDefault();
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(() => {});
-      } else {
-        document.exitFullscreen().catch(() => {});
+  // 7. Desktop Keyboard Navigation & Shortcuts (skipped on Android)
+  if (!isAndroid) {
+    window.addEventListener('keydown', (e) => {
+      // F5 or Ctrl+R: Refresh page
+      if (e.key === 'F5' || (e.ctrlKey && (e.key === 'r' || e.key === 'R'))) {
+        e.preventDefault();
+        window.location.reload();
+        return;
       }
-      return;
-    }
-    // Ctrl+Shift+O: Toggle Voice Overlay
-    if (e.ctrlKey && e.shiftKey && (e.key === 'o' || e.key === 'O')) {
-      e.preventDefault();
-      if (window.__TAURI__ && window.__TAURI__.core) {
-        window.__TAURI__.core.invoke('toggle_voice_overlay_command');
+      // Alt+Left: History back
+      if (e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        window.history.back();
+        return;
       }
-    }
-  }, true);
+      // Alt+Right: History forward
+      if (e.altKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        window.history.forward();
+        return;
+      }
+      // F11: Fullscreen toggle
+      if (e.key === 'F11') {
+        e.preventDefault();
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+          document.exitFullscreen().catch(() => {});
+        }
+        return;
+      }
+      // Ctrl+Shift+O: Toggle Voice Overlay
+      if (e.ctrlKey && e.shiftKey && (e.key === 'o' || e.key === 'O')) {
+        e.preventDefault();
+        if (window.__TAURI__ && window.__TAURI__.core) {
+          window.__TAURI__.core.invoke('toggle_voice_overlay_command');
+        }
+      }
+    }, true);
+  }
 
-  // 8. Voice & In-Game Chat Overlay Reporter Engine (Gaming & 240 FPS Optimized)
-  // Low-overhead event-driven reporter: sleeps when idle, dynamically throttles
+  // 8. Voice & In-Game Chat Overlay Reporter Engine (Desktop-only; sleeps on Android)
   (function initVoiceOverlayReporter() {
+    if (isAndroid) return;
     let lastSent = '';
     let socket = null;
     let rosters = Object.create(null);
