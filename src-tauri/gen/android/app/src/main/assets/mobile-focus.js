@@ -88,33 +88,33 @@
 
       /* Top Channel Header */
       .channel-header, #chat-header, .chat-header {
-        height: calc(48px + var(--safe-top)) !important;
-        min-height: 48px !important;
-        padding: var(--safe-top) 10px 0 10px !important;
+        height: calc(52px + var(--safe-top)) !important;
+        min-height: 52px !important;
+        padding: var(--safe-top) 12px 0 12px !important;
         background: #2b2d31 !important;
         border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
         display: flex !important;
         align-items: center !important;
         justify-content: space-between !important;
-        gap: 6px !important;
+        gap: 8px !important;
       }
 
       #mobile-menu-btn {
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        width: 36px !important;
-        height: 36px !important;
+        width: 38px !important;
+        height: 38px !important;
         flex-shrink: 0 !important;
         font-size: 26px !important;
         font-weight: 700 !important;
-        color: #949ba4 !important;
+        color: #b5bac1 !important;
         background: transparent !important;
         border: none !important;
+        border-radius: 10px !important;
         cursor: pointer !important;
         line-height: 1 !important;
         padding: 0 !important;
-        margin-right: 4px !important;
       }
 
       .channel-header .mobile-server-dropdown,
@@ -129,7 +129,7 @@
       }
 
       #channel-header-name {
-        font-size: 15.5px !important;
+        font-size: 16px !important;
         font-weight: 700 !important;
         color: #f2f3f5 !important;
         white-space: nowrap !important;
@@ -140,13 +140,14 @@
       .channel-header .voice-controls {
         display: flex !important;
         align-items: center !important;
-        gap: 4px !important;
+        gap: 6px !important;
         flex-shrink: 0 !important;
       }
 
       #voice-active-indicator {
-        max-width: 108px !important;
-        padding: 4px 8px !important;
+        max-width: 112px !important;
+        padding: 5px 10px !important;
+        border-radius: 999px !important;
         font-size: 12px !important;
         white-space: nowrap !important;
         overflow: hidden !important;
@@ -157,28 +158,46 @@
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        width: 36px !important;
-        height: 36px !important;
+        width: 38px !important;
+        height: 38px !important;
         flex-shrink: 0 !important;
-        color: #949ba4 !important;
+        color: #b5bac1 !important;
         background: transparent !important;
         border: none !important;
+        border-radius: 10px !important;
+      }
+
+      /* Chat Messages & Media */
+      #messages-container, .messages-container {
+        padding: 8px 6px !important;
+      }
+
+      .message, .msg-group {
+        border-radius: 12px !important;
+        padding: 8px 10px !important;
+        margin-bottom: 4px !important;
+      }
+
+      .message img, .message video, .msg-attachment img {
+        max-width: 100% !important;
+        height: auto !important;
+        border-radius: 10px !important;
       }
 
       /* Clean Mobile Pill Composer */
       #message-input-area, .message-input-area {
         position: relative !important;
         background: #383a40 !important;
-        border-radius: 20px !important;
+        border-radius: 24px !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        margin: 6px 10px calc(6px + var(--safe-bottom)) 10px !important;
-        padding: 4px 8px !important;
+        margin: 6px 10px calc(8px + var(--safe-bottom)) 10px !important;
+        padding: 5px 8px !important;
         display: flex !important;
         flex-direction: row !important;
         align-items: center !important;
         gap: 6px !important;
         z-index: 99995 !important;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25) !important;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28) !important;
         box-sizing: border-box !important;
         flex-shrink: 0 !important;
       }
@@ -367,14 +386,16 @@
       }
 
       .channel-item {
-        border-radius: 8px !important;
-        margin: 2px 8px !important;
-        padding: 7px 10px !important;
+        min-height: 44px !important;
+        border-radius: 10px !important;
+        margin: 3px 8px !important;
+        padding: 9px 12px !important;
+        font-size: 15px !important;
         cursor: pointer !important;
       }
 
       .channel-item.active {
-        background: rgba(255, 255, 255, 0.12) !important;
+        background: rgba(88, 101, 242, 0.22) !important;
         color: #ffffff !important;
         font-weight: 600 !important;
       }
@@ -401,9 +422,9 @@
         height: auto !important;
       }
 
-      /* Responsive Settings Modal on narrow mobile portrait screens */
+      /* Full-screen Native-style Settings Sheet on Mobile */
       #settings-modal {
-        padding: 8px !important;
+        padding: 0 !important;
         box-sizing: border-box !important;
       }
 
@@ -411,10 +432,13 @@
       #settings-modal .modal,
       .settings-modal .modal-content {
         min-width: 0 !important;
-        width: calc(100vw - 16px) !important;
-        max-width: calc(100vw - 16px) !important;
-        max-height: 88dvh !important;
-        margin: 0 auto !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+        height: 100dvh !important;
+        max-height: 100dvh !important;
+        margin: 0 !important;
+        border-radius: 0 !important;
+        border: none !important;
         overflow-x: hidden !important;
         box-sizing: border-box !important;
       }
