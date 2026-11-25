@@ -55,11 +55,12 @@ jobs:
         run: npm test
 
       - name: Check Rust Core
-        run: cargo check --manifest-path src-tauri/Cargo.toml
+        run: cargo check --manifest-path src-tauri/Cargo.toml --target aarch64-linux-android
 
       - name: Build Android APK
         env:
           NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.0.12077973
+          ANDROID_NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.0.12077973
         run: |
           npx tauri android build --config src-tauri/tauri.android.conf.json --apk --target aarch64
           find src-tauri/gen/android/app/build/outputs/apk -type f -name "*.apk"
